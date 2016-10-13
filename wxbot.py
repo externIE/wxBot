@@ -17,11 +17,41 @@ import random
 from traceback import format_exc
 from requests.exceptions import ConnectionError, ReadTimeout
 import HTMLParser
+import multiprocessing
+import EXBOT
 
 UNKONWN = 'unkonwn'
 SUCCESS = '200'
 SCANED = '201'
 TIMEOUT = '408'
+
+def _decode_list(data):
+    rv = []
+    for item in data:
+        if isinstance(item, unicode):
+            item = item.encode('utf-8')
+        elif isinstance(item, list):
+            item = _decode_list(item)
+        elif isinstance(item, dict):
+            item = _decode_dict(item)
+        rv.append(item)
+    return rv
+
+
+def _decode_dict(data):
+    rv = {}
+    for key, value in data.iteritems():
+        if isinstance(key, unicode):
+            key = key.encode('utf-8')
+        if isinstance(value, unicode):
+            value = value.encode('utf-8')
+        elif isinstance(value, list):
+            value = _decode_list(value)
+        elif isinstance(value, dict):
+            value = _decode_dict(value)
+        rv[key] = value
+    return rv
+
 
 
 def show_image(file_path):
@@ -51,12 +81,13 @@ class SafeSession(requests.Session):
                                                         timeout,
                                                         allow_redirects, proxies, hooks, stream, verify, cert, json)
             except Exception as e:
-                print e.message, traceback.format_exc()
+                # print e.message, traceback.format_exc()
                 continue
 
 
 class WXBot:
     """WXBot功能类"""
+    
 
     def __init__(self):
         self.DEBUG = False
@@ -100,6 +131,8 @@ class WXBot:
         self.encry_chat_room_id_list = []  # 存储群聊的EncryChatRoomId，获取群内成员头像时需要用到
 
         self.file_index = 0
+
+        
 
     @staticmethod
     def to_unicode(string, encoding='utf-8'):
@@ -543,6 +576,11 @@ class WXBot:
         :param r: 原始微信消息
         """
         for msg in r['AddMsgList']:
+            print '[*] 你有新的消息，请注意查收'
+            # print 'len:', len(self.exBotList)
+            if self.handle_raw_msg(msg):
+                continue
+
             user = {'id': msg['FromUserName'], 'name': 'unknown'}
             if msg['MsgType'] == 51:  # init message
                 msg_type_id = 0
@@ -592,6 +630,9 @@ class WXBot:
                        'to_user_id': msg['ToUserName'],
                        'user': user}
             self.handle_msg_all(message)
+
+    def handle_raw_msg(self, msg):
+        return False
 
     def schedule(self):
         """
@@ -970,7 +1011,42 @@ class WXBot:
         self.get_contact()
         print '[INFO] Get %d contacts' % len(self.contact_list)
         print '[INFO] Start to process messages .'
-        self.proc_msg()
+        # self.proc_msg()
+        self.afterRun()
+        listenProcess = multiprocessing.Process(target=self.proc_msg)
+        listenProcess.start()
+        
+        while True:
+            text = raw_input('')
+            if text == 'quit':
+                listenProcess.terminate()
+                print('[*] 退出微信')
+                exit()
+            elif text[:4] == 'Send':
+                [name, word] = text[4:].split(':')
+                if name == 'all':
+                    pass
+                    # self.sendMsgToAll(word)
+                else:
+                    pass
+                    # self.sendMsg(name, word)
+            elif text[:5] == 'mSend':
+                [name, file] = text[5:].split(':')
+                # self.sendMsg(name, file, True)
+            elif text[:5] == 'fSend':
+                print '发送文件'
+            elif text[:5] == 'iSend':
+                print '发送图片'
+                [name, file_name] = text[5:].split(':')
+                # self.sendImg(name, file_name)
+            elif text[:5] == 'eSend':
+                print '发送表情'
+                [name, file_name] = text[5:].split(':')
+            elif text == 'restart':
+                print '重启微信。。。。。'
+
+    def afterRun(self):
+        pass
 
     def get_uuid(self):
         url = 'https://login.weixin.qq.com/jslogin'
@@ -1139,7 +1215,7 @@ class WXBot:
         }
         url = 'https://' + self.sync_host + '.qq.com/cgi-bin/mmwebwx-bin/synccheck?' + urllib.urlencode(params)
         try:
-            r = self.session.get(url, timeout=60)
+            r = self.session.get(url, timeout=10)
             r.encoding = 'utf-8'
             data = r.text
             pm = re.search(r'window.synccheck=\{retcode:"(\d+)",selector:"(\d+)"\}', data)
@@ -1250,3 +1326,10 @@ class WXBot:
             return dic['BaseResponse']['ErrMsg']
         except:
             return None
+
+    def getUserID(self, name):
+        for member in self.member_list:
+            print '[*] 联系人：' + member['NickName'] + '\n'
+            if name == member['RemarkName'] or name == member['NickName']:
+                return member['UserName']
+        return None
