@@ -83,6 +83,7 @@ class MyWXBot(WXBot):
 
     def createExBots(self):
         print '创建机器人...'
+        self.exBotList = []
         for group in self.group_list:
             for gamegroup in self.gameGroupList:
                 if group['NickName'].encode('utf8') == gamegroup['GroupName']:

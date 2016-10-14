@@ -1042,8 +1042,14 @@ class WXBot:
             elif text[:5] == 'eSend':
                 print '发送表情'
                 [name, file_name] = text[5:].split(':')
-            elif text == 'restart':
+            elif text == 'restartwechat':
                 print '重启微信。。。。。'
+                self.afterRun()
+                listenProcess.terminate()
+                listenProcess.start()
+            elif text == 'restartrobots':
+                print '重启所有机器人。。。。。'
+                self.afterRun()
 
     def afterRun(self):
         pass
