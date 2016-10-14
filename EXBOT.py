@@ -340,8 +340,9 @@ class EXBOT(object):
 	def startFB(self):
 		#开始发包
 		if not self.isStatus(Status_QiangBao - 1):
-			print u'当前状态为[%s]'%(StatusProfile[self.status])
-			self.sendMsgToMyGroup('当前状态为[%s],不能开始发包'%(StatusProfile[self.status]))
+			warning = u'当前状态为[%s]'%(StatusProfile[self.status])
+			print unicode(warning, 'utf-8')
+			self.sendMsgToMyGroup(unicode(warning, 'utf-8'))
 			return
 
 		template = self.tpFBTip
