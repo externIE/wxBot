@@ -1,17 +1,17 @@
 {
+    "抽水分数": 0, 
     "playersinfo": [
         {
-            "score": 76100, 
+            "score": 77666, 
             "name": "externIE"
         }, 
         {
-            "score": 40000, 
+            "score": 38350, 
             "name": "谢星华"
         }, 
         {
             "score": 35000, 
             "name": "施海健"
         }
-    ],
-    "抽水分数":0
+    ]
 }

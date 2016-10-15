@@ -56,7 +56,7 @@ Status_QB_END		= 6
 Status_Wait         = 7
 
 
-StatusProfile = {Status_White:u'空白',Status_Wait:u'等待中',Status_QiangZhuang:u'上庄中',Status_XiaZhu:u'下注中',Status_QiangBao:u'抢包中',Status_QZ_END:u'抢庄结束',Status_XZ_END:u'下注结束',Status_QB_END:u'抢包结束'}
+StatusProfile = {Status_White:'空白',Status_Wait:'等待中',Status_QiangZhuang:'上庄中',Status_XiaZhu:'下注中',Status_QiangBao:'抢包中',Status_QZ_END:'抢庄结束',Status_XZ_END:'下注结束',Status_QB_END:'抢包结束'}
 
 
 
@@ -144,6 +144,7 @@ class EXBOT(object):
 		fn = os.path.join(dirname, filename)
 		with open(fn, 'r') as file:
 			self.jsonPlayersInfo = config = json.load(file, object_hook=_decode_dict)
+			self.lastBoutPlayersInfo = config.copy()
 		self.playersinfo = config['playersinfo']
 		self.playersName = []
 		for index, playerinfo in enumerate(self.playersinfo):
@@ -184,6 +185,15 @@ class EXBOT(object):
 			if playerinfo["name"] == name:
 				return playerinfo['score']
 		return 0
+
+	def getLastBoutPlayerScoreByName(self, name):
+		playersinfo = self.lastBoutPlayersInfo['playersinfo']
+		for index, playerinfo in enumerate(playersinfo):
+			print 'playerInfo[name]:', playerinfo["name"]
+			if playerinfo["name"] == name:
+				return playerinfo['score']
+		return 0
+
 
 	def setPlayerScoreByName(self, name, score):
 		for index, playerinfo in enumerate(self.playersinfo):
@@ -241,14 +251,14 @@ class EXBOT(object):
 	def startQZ(self):
 		#发送新局消息
 		if not self.isStatus(Status_QiangZhuang - 1):
-			print u'当前状态为[%s]'%(StatusProfile[self.status])
+			print '当前状态为[%s]'%(StatusProfile[self.status])
 			self.sendMsgToMyGroup('当前状态为[%s],不能开始上庄'%(StatusProfile[self.status]))
 			return
 
 		print '发送抢庄消息，抢庄开始'
 		self.qzPlayerList = {}
 		template = self.tpNewboutTip
-		text = template%(self.adminname, self.qiangzhuangtimelimit)
+		text = template%(self.qiangzhuangtimelimit,self.zLowLimit)
 		if self.sendMsgToMyGroup(text):
 			self.setStatus(Status_QiangZhuang)
 		else:
@@ -258,7 +268,7 @@ class EXBOT(object):
 	def endQZ(self):
 		#抢庄结束
 		if not self.isStatus(Status_QZ_END - 1):
-			print u'当前状态为[%s]'%(StatusProfile[self.status])
+			print '当前状态为[%s]'%(StatusProfile[self.status])
 			self.sendMsgToMyGroup('当前状态为[%s],不能开始结束上庄'%(StatusProfile[self.status]))
 			return
 
@@ -299,14 +309,14 @@ class EXBOT(object):
 	def startXZ(self):
 		#开始下注
 		if not self.isStatus(Status_XiaZhu - 1):
-			print u'当前状态为[%s]'%(StatusProfile[self.status])
-			self.sendMsgToMyGroup('当前状态为[%s],不能开始结束下注'%(StatusProfile[self.status]))
+			print '当前状态为[%s]'%(StatusProfile[self.status])
+			self.sendMsgToMyGroup('当前状态为[%s],不能开始下注'%(StatusProfile[self.status]))
 			return
 
 		print '开始下注'
 		self.xzPlayerList = {}
 		template = self.tpXZTip
-		text = template%(self.adminname, self.xiazhutimelimit, self.maxBL)
+		text = template%(self.xiazhutimelimit, self.maxBL, self.xzLowLimit)
 		if self.sendMsgToMyGroup(text):
 			self.setStatus(Status_XiaZhu)
 		else:
@@ -316,8 +326,8 @@ class EXBOT(object):
 	def endXZ(self):
 		#下注结束
 		if not self.isStatus(Status_XZ_END - 1):
-			print u'当前状态为[%s]'%(StatusProfile[self.status])
-			self.sendMsgToMyGroup('当前状态为[%s],不能开始结束下注'%(StatusProfile[self.status]))
+			print '当前状态为[%s]'%(StatusProfile[self.status])
+			self.sendMsgToMyGroup('当前状态为[%s],不能结束下注'%(StatusProfile[self.status]))
 			return
 
 		if len(self.xzPlayerList) == 0:
@@ -340,9 +350,7 @@ class EXBOT(object):
 	def startFB(self):
 		#开始发包
 		if not self.isStatus(Status_QiangBao - 1):
-			warning = u'当前状态为[%s]'%(StatusProfile[self.status])
-			print unicode(warning, 'utf-8')
-			self.sendMsgToMyGroup(unicode(warning, 'utf-8'))
+			self.sendMsgToMyGroup('当前状态为[%s],不能进行发包。'%(StatusProfile[self.status]))
 			return
 
 		template = self.tpFBTip
@@ -373,15 +381,16 @@ class EXBOT(object):
 		for name, bl in self.blPlayerList.items():
 			strName = name
 			strZX = "庄" if name == self.zPlayerName else "闲"
-			strXZ = str(self.xzPlayerList[name])
+			strXZ = str(self.xzPlayerList[name] if name != self.zPlayerName else self.ozZhu)
 			strDS = str(self.dsPlayerList[name])
 			strType = self.typePlayerList[name]
 			strBL = str(self.blPlayerList[name])
 			strSign = '赢' if self.diffPlayerList[name] > 0 else '输'
 			strDiff = str(abs(self.diffPlayerList[name]))
-			strShui = str(self.csPlayerList[name])
+			strShui = str(self.csPlayerList[name] if name in self.csPlayerList.keys() else 0)
+			strLastScore = str(self.getLastBoutPlayerScoreByName(name))
 			strScore = str(self.getPlayerScoreByName(name))
-			normalResults += self.tpNPRez%(strName,strZX,strXZ,strDS,strType,strBL,strSign,strDiff,strShui,strScore)
+			normalResults += self.tpNPRez%(strName,strZX,strXZ,strDS,strType,strBL,strShui,strLastScore,strSign,strDiff,strScore)
 
 		abortResults = ""
 		for name, xzScore in self.xzPlayerList.items():
@@ -391,13 +400,15 @@ class EXBOT(object):
 				strZX = "庄" if name == self.zPlayerName else "闲"
 				strSign = '赢' if self.diffPlayerList[name] > 0 else '输'
 				strDiff = str(abs(self.diffPlayerList[name]))
+				strLastScore = str(self.getLastBoutPlayerScoreByName(name))
 				strScore = str(self.getPlayerScoreByName(name))
-				abortResults += self.tpFPRez%(strName,strZX,strSign,strScore)
+				abortResults += self.tpFPRez%(strName,strZX,strLastScore,strSign,strDiff,strScore)
 
 		template = self.tpRez
 		text = template%(normalResults, abortResults, self.boutintervaltime)
 		if self.sendMsgToMyGroup(text):
-			pass
+			self.initData()
+			self.lastBoutPlayersInfo = self.jsonPlayersInfo.copy()
 		else:
 			print '[error!] 发送开始消息失败,正在重新发送...'
 			self.showResult()
@@ -483,7 +494,8 @@ class EXBOT(object):
 			print '名字', group[0]
 			print '点数', group[1]
 			#在python中字符编码的转换都是通过unicode作为中间值实现的
-			self.dsPlayerList[unicode(group[0], 'utf-8')] = group[1]
+			print group[0] in self.xzPlayerList.keys()
+			self.dsPlayerList[group[0]] = group[1]
 		print self.dsPlayerList
 		if len(self.dsPlayerList) != 0 :
 			return True
@@ -721,7 +733,7 @@ class EXBOT(object):
 			return True
 
 		if memberID == self.admin and not self.autoCtrl:
-			if memberSay == '开始游戏':
+			if memberSay == '开始游戏' or memberSay == '游戏开始':
 				self.sendPlayersScore()
 				return True
 			if memberSay == '开始上庄' or memberSay == '上庄开始':
@@ -730,13 +742,13 @@ class EXBOT(object):
 			if memberSay == '上庄结束' or memberSay == '结束上庄':
 				self.endQZ()
 				return True
-			if memberSay == '开始下分' or memberSay == '下分开始':
+			if memberSay == '开始押注' or memberSay == '押注开始':
 				self.startXZ()
 				return True
-			if memberSay == '结束下分' or memberSay == '下分结束':
+			if memberSay == '结束押注' or memberSay == '押注结束':
 				self.endXZ()
 				return True
-			if memberSay == '准备发包' or memberSay == '发包准备':
+			if memberSay == '准备发包' or memberSay == '发包准备' or memberSay == '开始发包' or memberSay == '发包开始':
 				self.startFB()
 				return True
 
