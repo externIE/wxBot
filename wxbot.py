@@ -830,7 +830,12 @@ class WXBot:
             r = self.session.post(url, data=data, headers=headers)
         except (ConnectionError, ReadTimeout):
             return False
-        dic = r.json()
+        try:
+            dic = r.json()
+        except ValueError:
+            print '抛出一个异常，不正确的json格式，正在重试。。。'
+            return self.send_img_msg_by_uid(word, dst)
+        
         return dic['BaseResponse']['Ret'] == 0
 
     def upload_media(self, fpath, is_img=False):
