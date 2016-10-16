@@ -1,16 +1,20 @@
 {
     "playersinfo": [
         {
-            "score": 23500, 
-            "name": "externIE"
-        }, 
-        {
-            "score": 112932, 
+            "score": 132207, 
             "name": "谢星华"
         }, 
         {
             "score": 35000, 
             "name": "施海健"
+        }, 
+        {
+            "score": 13303, 
+            "name": "externIE"
+        }, 
+        {
+            "score": 17450, 
+            "name": "why"
         }
     ]
 }

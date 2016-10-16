@@ -118,6 +118,7 @@ class EXBOT(object):
 		self.boutintervaltime = config["每局间隔时间"]
 		self.zLowLimit = config["上庄下限"]
 		self.xzLowLimit = config["下注下限"]
+		self.enableXuZhuang = config['是否开启续庄']
 
 		self.xzStep = config["每次续庄涨"]
 		self.xzMaxCount = config["可续庄次数"]
@@ -257,6 +258,7 @@ class EXBOT(object):
 			file.write(json.dumps(self.jsonPlayersInfo, ensure_ascii=False , indent=4))
 
 	def sendPlayersScore(self):
+		self.sortPlayersScore()
 		template = self.tpPlayersScoreList
 		content = ''
 		for playerinfo in self.playersinfo:
@@ -267,6 +269,16 @@ class EXBOT(object):
 		else:
 			print '[error!] 玩家积分发送失败，正在重新发送...'
 			self.sendPlayersScore()
+
+	def sortPlayersScore(self):
+		def cmp(x,y):
+			if x['score'] < y['score']:
+				return 1
+			elif x['score'] > y['score']:
+				return -1
+			else:
+				return 0
+		self.playersinfo.sort(cmp)
 
 	def sendPlayerScore(self, name):
 		for playerinfo in self.playersinfo:
@@ -321,7 +333,7 @@ class EXBOT(object):
 
 		self.csPlayerList[zPlayerName] = zZhu*self.qzRatio
 
-		text = template%(zPlayerName,zZhu,self.ratio2percent(self.qzRatio))
+		text = template%(zPlayerName,zZhu)
 		if self.sendMsgToMyGroup(text):
 			self.setStatus(Status_QZ_END)
 			return True
@@ -489,11 +501,11 @@ class EXBOT(object):
 				strType = '*'
 				strBL = "*"
 				strSign = '赢' if self.diffPlayerList[name] > 0 else '输'
-				strDiff = str(abs(self.diffPlayerList[name]))
+				strDiff = str(abs(self.diffPlayerList[name] if name in self.diffPlayerList.keys() else 0))
 				strShui = str(self.csPlayerList[name] if name in self.csPlayerList.keys() else 0)
 				strLastScore = str(self.getLastBoutPlayerScoreByName(name))
 				strScore = str(self.getPlayerScoreByName(name))
-				normalResults += self.tpNPRez%(strName,strZX,strXZ,strDS,strType,strBL,strLastScore,strShui,strSign,strDiff,strScore)
+				normalResults += self.tpNPRez%(strName,strZX,strXZ,strDS,strType,strBL,strLastScore,strSign,strDiff,strScore)
 			
 			zPlayerName = self.zPlayerName
 			strName = zPlayerName
@@ -503,11 +515,11 @@ class EXBOT(object):
 			strType = '*'
 			strBL = '*'
 			strSign = '赢' if self.diffPlayerList[zPlayerName] > 0 else '输'
-			strDiff = str(abs(self.diffPlayerList[zPlayerName]))
+			strDiff = str(abs(self.diffPlayerList[name] if name in self.diffPlayerList.keys() else 0))
 			strShui = str(self.csPlayerList[zPlayerName] if zPlayerName in self.csPlayerList.keys() else 0)
 			strLastScore = str(self.getLastBoutPlayerScoreByName(zPlayerName))
 			strScore = str(self.getPlayerScoreByName(zPlayerName))
-			normalResults += self.tpNPRez%(strName,strZX,strXZ,strDS,strType,strBL,strLastScore,strShui,strSign,strDiff,strScore)
+			normalResults += self.tpNPRez%(strName,strZX,strXZ,strDS,strType,strBL,strLastScore,strSign,strDiff,strScore)
 			abortResults = ''
 		else:
 			for name, bl in self.blPlayerList.items():
@@ -518,11 +530,11 @@ class EXBOT(object):
 				strType = self.typePlayerList[name]
 				strBL = str(self.blPlayerList[name])
 				strSign = '赢' if self.diffPlayerList[name] > 0 else '输'
-				strDiff = str(abs(self.diffPlayerList[name]))
+				strDiff = str(abs(self.diffPlayerList[name] if name in self.diffPlayerList.keys() else 0))
 				strShui = str(self.csPlayerList[name] if name in self.csPlayerList.keys() else 0)
 				strLastScore = str(self.getLastBoutPlayerScoreByName(name))
 				strScore = str(self.getPlayerScoreByName(name))
-				normalResults += self.tpNPRez%(strName,strZX,strXZ,strDS,strType,strBL,strLastScore,strShui,strSign,strDiff,strScore)
+				normalResults += self.tpNPRez%(strName,strZX,strXZ,strDS,strType,strBL,strLastScore,strSign,strDiff,strScore)
 			
 			for name, xzScore in self.xzPlayerList.items():
 				#看看谁下注但没有抢包
@@ -531,14 +543,19 @@ class EXBOT(object):
 					strZX = "庄" if name == self.zPlayerName else "闲"
 					strSign = '赢' if self.diffPlayerList[name] > 0 else '输'
 					strXZ = str(self.xzPlayerList[name] if name != self.zPlayerName else self.ozZhu)
-					strDiff = str(abs(self.diffPlayerList[name]))
+					strDiff = str(abs(self.diffPlayerList[name] if name in self.diffPlayerList.keys() else 0))
 					strLastScore = str(self.getLastBoutPlayerScoreByName(name))
 					strScore = str(self.getPlayerScoreByName(name))
 					abortResults += self.tpFPRez%(strName,strZX,strXZ,strLastScore,strSign,strDiff,strScore)
 
 		template = self.tpRez
 
-		text = template%(normalResults, abortResults, self.boutintervaltime)
+		phb = ''
+		self.sortPlayersScore()
+		for playerinfo in self.playersinfo:
+			phb += self.tpPlayerScore%(playerinfo['name'], playerinfo['score'])
+
+		text = template%(normalResults, abortResults, self.boutintervaltime,phb)
 		if self.sendMsgToMyGroup(text):
 			self.initData()
 			self.lastBoutPlayersInfo = copy.deepcopy(self.jsonPlayersInfo)
@@ -594,13 +611,15 @@ class EXBOT(object):
 				# 	print memberName, '下注'
 			else:
 				template = self.tpOutScoreTip
-				text = template%(memberName, self.getPlayerScoreByName(memberName)/self.maxBL)
+				text = template%(memberName, self.getPlayerScoreByName(memberName)/self.maxBL, self.getPlayerScoreByName(memberName)/self.maxBL)
 				self.sendMsgToMyGroup(text)
+				self.xzPlayerList[memberName] = int(self.getPlayerScoreByName(memberName)/self.maxBL)
+				print memberName, '下注', self.getPlayerScoreByName(memberName)/self.maxBL
 		else:
 			if not memberSay.isdigit():
-				self.sendMsgToMyGroup('[%s]下注无效！'%(memberName,))
+				self.sendMsgToMyGroup('[%s]下注无效，请撤回！'%(memberName,))
 			else:
-				self.sendMsgToMyGroup('[%s]押注下限%s起，本次押注无效'%(memberName, self.xzLowLimit))
+				self.sendMsgToMyGroup('[%s]押注下限%s起，本次押注无效，请撤回'%(memberName, self.xzLowLimit))
 		if memberSay == '取消':
 			if memberName in self.xzPlayerList.keys():
 				self.xzPlayerList.pop(memberName)
@@ -714,11 +733,11 @@ class EXBOT(object):
 		for qbName in self.blPlayerList.keys():
 			if qbName != zPlayerName and qbName != self.adminname and qbName not in self.xzPlayerList.keys():
 				if qbName in self.playersName:
-					print '[@%s]没有押注但是抢了包，当局无效，赔付所有闲家一赔一，赔付庄家588'%(qbName,)
-					self.sendMsgToMyGroup('[@%s]没有押注但是抢了包，当局无效，赔付所有闲家一赔一，赔付庄家588'%(qbName,))
-					for name, zhu in self.xzPlayerList.items():
-						self.setPlayerDiffScoreByName(name, zhu)
-						self.diffPlayerList[name] = zhu
+					print '[@%s]没有押注但是抢了包，当局无效，赔付庄家588'%(qbName,)
+					self.sendMsgToMyGroup('[@%s]没有押注但是抢了包，当局无效，赔付庄家588'%(qbName,))
+					# for name, zhu in self.xzPlayerList.items():
+					# 	self.setPlayerDiffScoreByName(name, zhu)
+					# 	self.diffPlayerList[name] = zhu
 					self.setPlayerDiffScoreByName(zPlayerName, 588)
 					self.setPlayerDiffScoreByName(zPlayerName, -self.csPlayerList[zPlayerName])
 					self.diffPlayerList[zPlayerName] = 588
@@ -734,13 +753,14 @@ class EXBOT(object):
 			#这一次循环先把所有输的闲家的钱收过来
 			if zPlayerName == name :
 				continue
-			if bl <= zBL :
+			if bl < zBL or (bl == zBL and self.dsPlayerList[zPlayerName] > self.dsPlayerList[name]) :
 				#庄家赢
 				xzScore = self.xzPlayerList[name]
 				self.setPlayerDiffScoreByName(zPlayerName, xzScore*zBL)
 				self.setPlayerDiffScoreByName(name, -xzScore*zBL)
 				self.diffPlayerList[name] = -xzScore*zBL
 				self.diffPlayerList[zPlayerName] += xzScore*zBL
+
 
 
 		for name, xzScore in self.xzPlayerList.items():
@@ -758,7 +778,7 @@ class EXBOT(object):
 			#这一次循环庄家赔钱
 			if zPlayerName == name :
 				continue
-			if bl > zBL :
+			if bl > zBL or (bl == zBL and self.dsPlayerList[zPlayerName] < self.dsPlayerList[name])  :
 				#庄家赔
 				xzScore = self.xzPlayerList[name]
 				self.setPlayerDiffScoreByName(zPlayerName, -xzScore*bl)
@@ -780,7 +800,7 @@ class EXBOT(object):
 				#
 				if zPlayerName == name :
 					continue
-				if bl > zBL :
+				if bl > zBL or (bl == zBL and self.dsPlayerList[zPlayerName] < self.dsPlayerList[name])  :
 					#
 					xzScore = self.xzPlayerList[name]
 					self.setPlayerDiffScoreByName(name, -diffScore*xjWin[name]/xjWinTotal)
@@ -858,11 +878,12 @@ class EXBOT(object):
 			self.showResult()
 
 			time.sleep(1)
-			self.waitForXuZhuangAns = True
-			self.startXuZhuang()
-			while self.waitForXuZhuangAns:
-				#每0.01秒检查一次
-				time.sleep(0.1)
+			if self.enableXuZhuang:
+				self.waitForXuZhuangAns = True
+				self.startXuZhuang()
+				while self.waitForXuZhuangAns:
+					#每0.01秒检查一次
+					time.sleep(0.1)
 
 			# time.sleep(self.boutintervaltime)
 
@@ -901,12 +922,12 @@ class EXBOT(object):
 			self.sendPlayersScore()
 			return True
 
-		if memberSay == '我的积分':
-			self.sendPlayerScore(memberName)
-			return True
-		if memberSay == '积分':
-			self.sendPlayersScore()
-			return True
+		# if memberSay == '我的积分':
+		# 	self.sendPlayerScore(memberName)
+		# 	return True
+		# if memberSay == '积分':
+		# 	self.sendPlayersScore()
+		# 	return True
 
 		if memberID == self.admin and not self.autoCtrl:
 			if memberSay == '开始游戏' or memberSay == '游戏开始':
